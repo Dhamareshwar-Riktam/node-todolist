@@ -1,22 +1,25 @@
 <%- include("header") -%>
     <div class="box" id="heading">
         <h1>
-            Toady is <%= day %>
+            <%= day %>
         </h1>
     </div>
 
     <div class="box">
-        <% for (var i=0; i<items.length; i++) { %>
-            <div class="item">
-                <input type="checkbox">
-                <p>
-                    <%= items[i] %>
-                </p>
-            </div>
-            <% } %>
+        <% items.forEach(item=> { %>
+            <form action="/delete" , method="post">
+                <div class="item">
+                    <input type="checkbox" name="checkbox" value="<%=item._id %>" onchange="this.form.submit()">
+                    <p>
+                        <%= item.name %>
+                    </p>
+                </div>
+                <input type="hidden" name="listName" value="<%= day %>">
+            </form>
+            <% }) %>
                 <form class="item" action="/" method="post">
                     <input type="text" name="newItem" id="newItem" placeholder="New Item" autocomplete="off">
-                    <button type="submit" name="button" value=<%=day %>>+</button>
+                    <button type="submit" name="list" value=<%=day %>>+</button>
                 </form>
     </div>
     <%- include("footer") -%>

@@ -1,10 +1,12 @@
 const express = require('express');
 const app = express();
 const dotenv = require('dotenv');
+const _ = require('lodash');
 
 
 // Configuration
 dotenv.config();
+require('./config/db.js');
 
 
 // Middlewares
@@ -16,31 +18,128 @@ app.set('view engine', 'ejs');
 
 // Constants
 const PORT = process.env.PORT || 3000;
-
-let items = ["Buy milk", "Buy bread", "Buy cheese"];
 const weekDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-let workItems = [];
+
+
+// import models
+const Item = require('./models/Item');
+const List = require('./models/List');
+
+
+const item1 = new Item({
+    name: "This is Item 1"
+});
+
+const item2 = new Item({
+    name: "Use + button to add new item"
+});
+
+const item3 = new Item({
+    name: "<-- Use this checkbox to delete item"
+});
+
+const defaultItems = [item1, item2, item3];
+
+
 
 // Routes
 app.get('/', (req, res) => {
+
     let today = new Date();
     let currentDay = today.getDay();
-    res.render('weekday', { day: weekDays[currentDay], items });
+
+    Item.find()
+        .then(items => {
+            if (items.length !== 0) {
+                return res.render('weekday', { day: weekDays[currentDay], items: items });
+            } else {
+                Item.insertMany(defaultItems)
+                    .then(() => {
+                        return res.render('weekday', { day: weekDays[currentDay], items: defaultItems });
+                    })
+                    .catch(err => console.log(err));
+            }
+        })
+        .catch(err => console.log(err));
+
 });
 
 app.post("/", (req, res) => {
     let today = new Date();
     let currentDay = today.getDay();
-    if (req.body.button === weekDays[currentDay]) {
-        console.log(req.body);
-        var item = req.body.newItem;
-        items.push(item);
-        res.redirect("/");
+
+    const listName = req.body.list;
+
+    const item = new Item({
+        name: req.body.newItem
+    });
+
+    if (listName === weekDays[currentDay]) {
+        item.save()
+            .then(item => res.redirect('/'))
+            .catch(err => console.log(err));
+
+    } else {
+        List.findOne({ name: listName })
+            .then(list => {
+                if (!list) {
+                    const list = new List({
+                        name: listName,
+                        items: [item]
+                    });
+                    list.save()
+                        .then(list => res.redirect('/' + listName))
+                        .catch(err => console.log(err));
+                } else {
+                    list.items.push(item);
+                    list.save()
+                        .then(list => res.redirect('/' + listName))
+                        .catch(err => console.log(err));
+                }
+            })
+            .catch(err => console.log(err));
     }
+
 });
 
-app.get('/work', (req, res) => {
-    res.render("weekday", { day: "Work List", items: workItems })
+app.post('/delete', (req, res) => {
+    let today = new Date();
+    let currentDay = today.getDay();
+    const checkedItemId = req.body.checkbox;
+    const listName = req.body.listName;
+
+    if (listName === weekDays[currentDay]) {
+        Item.findByIdAndRemove(checkedItemId)
+            .then(item => res.redirect('/'))
+            .catch(err => console.log(err));
+    } else {
+        List.findOneAndUpdate({ name: listName }, { $pull: { items: { _id: checkedItemId } } })
+            .then(list => res.redirect('/' + listName))
+            .catch(err => console.log(err));
+    }
+})
+
+app.get('/:customListName', (req, res) => {
+    const customListName = _.capitalize(req.params.customListName);
+
+    List.findOne({ name: customListName })
+        .then(foundList => {
+            if (foundList) {
+                // Show Existsing List
+                res.render('weekday', { day: foundList.name, items: foundList.items })
+            } else {
+                // Create New List
+                const list = new List({
+                    name: customListName,
+                    items: defaultItems
+                });
+                list.save();
+                res.redirect('/' + customListName);
+            }
+        })
+        .catch(err => console.log(err));
+
+
 });
 
 app.post('/work', (req, res) => {
